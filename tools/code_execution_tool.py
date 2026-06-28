@@ -1032,9 +1032,11 @@ def _execute_remote(
     from tools.ansi_strip import strip_ansi
     stdout_text = strip_ansi(stdout_text)
 
-    # Redact secrets
+    # Redact secrets. code_file=True: execute_code output is code-execution
+    # output that often echoes source/config — skip false-positive ENV/JSON/
+    # f-string-template redaction while still masking real credentials.
     from agent.redact import redact_sensitive_text
-    stdout_text = redact_sensitive_text(stdout_text)
+    stdout_text = redact_sensitive_text(stdout_text, code_file=True)
 
     # Build response
     result: Dict[str, Any] = {
@@ -1291,7 +1293,7 @@ def execute_code(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
-            preexec_fn=None if _IS_WINDOWS else os.setsid,
+            start_new_session=True,
             creationflags=subprocess.CREATE_NO_WINDOW if _IS_WINDOWS else 0,
         )
 
@@ -1442,9 +1444,11 @@ def execute_code(
         # The sandbox env-var filter (lines 434-454) blocks os.environ access,
         # but scripts can still read secrets from disk (e.g. open('~/.hermes/.env')).
         # This ensures leaked secrets never enter the model context.
+        # code_file=True: this is code-execution output — skip false-positive
+        # ENV/JSON/f-string-template redaction; real credentials still masked.
         from agent.redact import redact_sensitive_text
-        stdout_text = redact_sensitive_text(stdout_text)
-        stderr_text = redact_sensitive_text(stderr_text)
+        stdout_text = redact_sensitive_text(stdout_text, code_file=True)
+        stderr_text = redact_sensitive_text(stderr_text, code_file=True)
 
         # Build response
         result: Dict[str, Any] = {
